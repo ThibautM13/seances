@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mes séances</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--tx:#1a1d21;--mu:#66707c;--ac:#1d6fd8;--bd:#dde1e6;color-scheme:light}
+@media(prefers-color-scheme:dark){:root{--bg:#14171a;--card:#1e2226;--tx:#eef0f2;--mu:#9aa4af;--ac:#5aa2ff;--bd:#343a40;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:720px;margin:0 auto;padding:12px}
+nav{display:flex;gap:6px;margin-bottom:12px}
+nav button{flex:1;padding:10px;border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:10px;font:inherit}
+nav button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin-bottom:10px}
+input,textarea,select{width:100%;padding:9px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit;margin:3px 0 8px}
+label{font-size:13px;color:var(--mu)}
+.btn{padding:9px 14px;border:0;border-radius:8px;background:var(--ac);color:#fff;font:inherit;cursor:pointer}
+.btn.sec{background:transparent;color:var(--ac);border:1px solid var(--ac)}
+.btn.del{background:transparent;color:#d33;border:1px solid #d33;padding:6px 10px}
+.row{display:flex;gap:8px}.row>*{flex:1}
+.thumb{width:96px;height:72px;border-radius:10px;background:var(--bd);display:flex;align-items:center;justify-content:center;font-size:30px;overflow:hidden;flex:none}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.ex{display:flex;gap:12px;align-items:center}
+.ex h3{margin:0 0 2px;font-size:17px}
+.tags{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0}
+.tags span{background:var(--bg);border:1px solid var(--bd);border-radius:20px;padding:2px 10px;font-size:14px}
+.mu{color:var(--mu);font-size:14px;white-space:pre-line}
+a{color:var(--ac)}
+@media print{nav,.noprint{display:none!important}body{background:#fff;color:#000}.card{break-inside:avoid;border-color:#ccc}}
+</style></head><body><main>
+<nav class="noprint" id="nav"><button data-tab="lib">Bibliothèque</button><button data-tab="ses">Séance</button><button data-tab="prev">Aperçu / PDF</button></nav>
+<div id="v"></div>
+</main>
+<script>
+var S={tab:"ses",lib:[],ses:{title:"Séance 1",player:"",items:[]},edit:null,ro:false};
+var KEY="seances-v2";
+function save(){try{localStorage.setItem(KEY,JSON.stringify({lib:S.lib,ses:S.ses}))}catch(e){}}
+function vidId(u){var m=String(u||"").match(/(?:v=|youtu\.be\/|shorts\/|embed\/)([\w-]{11})/);return m?m[1]:""}
+function th(v){return v?"https://i.ytimg.com/vi/"+v+"/hqdefault.jpg":""}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+function enc(o){return btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"")}
+function dec(s){s=s.replace(/-/g,"+").replace(/_/g,"/");while(s.length%4)s+="=";return JSON.parse(decodeURIComponent(escape(atob(s))))}
+function load(){
+ if(location.hash.indexOf("#s=")==0){try{var d=dec(location.hash.slice(3));S.ro=true;S.tab="prev";S.ses={title:d.t,player:d.p,items:d.i};return}catch(e){}}
+ try{var x=JSON.parse(localStorage.getItem(KEY)||"null");if(x){S.lib=x.lib||[];S.ses=x.ses||S.ses}}catch(e){}}
+function ex(id){return S.lib.filter(function(e){return e.id==id})[0]}
+function resolved(){
+ if(S.ro)return S.ses.items;
+ var out=[];S.ses.items.forEach(function(it){var x=ex(it.exId);if(x)out.push({n:x.name,v:x.vid,k:x.tips,s:it.sets,r:it.reps,l:it.load,t:it.rest})});return out}
+function thumb(v){return'<div class="thumb">'+(v?'<img src="'+th(v)+'" alt="">':"🏋️")+"</div>"}
+function render(){
+ document.getElementById("nav").style.display=S.ro?"none":"flex";
+ document.querySelectorAll("nav button").forEach(function(b){b.className=b.dataset.tab==S.tab?"on":""});
+ document.getElementById("v").innerHTML=S.tab=="lib"?libView():S.tab=="ses"?sesView():prevView()}
+function libView(){
+ var e=S.edit||{id:0,name:"",video:"",tips:""};
+ var h='<div class="card"><b>'+(e.id?"Modifier":"Nouvel")+' exercice</b><br><label>Lien YouTube</label><div class="row"><input id="f-video" value="'+esc(e.video)+'" placeholder="https://youtu.be/…"><button class="btn" data-a="fetch" style="flex:none">Récupérer</button></div><div class="mu" id="f-st"></div>'
+ +'<label>Nom</label><input id="f-name" value="'+esc(e.name)+'"><label>Consignes d’exécution</label><textarea id="f-tips" rows="4">'+esc(e.tips)+"</textarea>"
+ +'<button class="btn" data-a="saveEx">Enregistrer</button> '+(e.id?'<button class="btn sec" data-a="cancel">Annuler</button>':"")+"</div>";
+ S.lib.forEach(function(x){h+='<div class="card ex">'+thumb(x.vid)+'<div style="flex:1"><h3>'+esc(x.name)+'</h3><div class="mu">'+esc((x.tips||"").slice(0,120))+'</div></div><div><button class="btn sec" data-a="editEx" data-id="'+x.id+'">✎</button> <button class="btn del" data-a="delEx" data-id="'+x.id+'">✕</button></div></div>'});
+ return h}
+function fld(l,k,v,i){return"<div><label>"+l+'</label><input data-k="'+k+'" data-i="'+i+'" value="'+esc(v)+'"></div>'}
+function sesView(){
+ var s=S.ses;
+ var h='<div class="card"><div class="row"><div><label>Titre de la séance</label><input id="s-title" value="'+esc(s.title)+'"></div><div><label>Joueur / groupe</label><input id="s-player" value="'+esc(s.player)+'"></div></div></div>';
+ s.items.forEach(function(it,i){var x=ex(it.exId);if(!x)return;
+  h+='<div class="card"><div class="ex">'+thumb(x.vid)+'<h3 style="flex:1">'+(i+1)+". "+esc(x.name)+'</h3><div><button class="btn sec" data-a="up" data-i="'+i+'">↑</button> <button class="btn sec" data-a="down" data-i="'+i+'">↓</button> <button class="btn del" data-a="rm" data-i="'+i+'">✕</button></div></div><div class="row" style="margin-top:8px">'+fld("Séries","sets",it.sets,i)+fld("Reps","reps",it.reps,i)+fld("Charge","load",it.load,i)+fld("Repos","rest",it.rest,i)+"</div></div>"});
+ h+='<div class="card"><label>Ajouter un exercice</label><div class="row"><select id="add-sel">'+S.lib.map(function(x){return'<option value="'+x.id+'">'+esc(x.name)+"</option>"}).join("")+'</select><button class="btn" data-a="add" style="flex:none">Ajouter</button></div></div>';
+ return h}
+function tag(v,l){return v?"<span>"+esc(v)+(l?" "+l:"")+"</span>":""}
+function prevView(){
+ var s=S.ses,h="";
+ if(!S.ro)h+='<div class="noprint card"><button class="btn" data-a="share">Copier le lien à envoyer</button> <button class="btn sec" data-a="print">Exporter en PDF</button><div class="mu" id="sh-st"></div></div>';
+ h+='<div class="card"><h2 style="margin:0">'+esc(s.title)+"</h2>"+(s.player?'<div class="mu">'+esc(s.player)+"</div>":"")+"</div>";
+ var L=resolved();
+ L.forEach(function(it,i){var u=it.v?"https://www.youtube.com/watch?v="+it.v:"";
+  var im=u?'<a href="'+u+'" target="_blank" rel="noopener">'+thumb(it.v)+"</a>":thumb("");
+  h+='<div class="card ex">'+im+'<div style="flex:1"><h3>'+(i+1)+". "+esc(it.n)+'</h3><div class="tags">'+tag(it.s,"séries")+tag(it.r,"reps")+tag(it.l,"")+tag(it.t,"repos")+'</div><div class="mu">'+esc(it.k)+"</div>"+(u?'<a href="'+u+'" target="_blank" rel="noopener">▶ Voir la vidéo</a>':"")+"</div></div>"});
+ if(!L.length)h+='<p class="mu">Ajoute des exercices dans l’onglet Séance.</p>';
+ return h}
+function shareLink(){
+ var items=resolved().map(function(x){return{n:x.n,v:x.v,k:(x.k||"").slice(0,300),s:x.s,r:x.r,l:x.l,t:x.t}});
+ return location.origin+location.pathname+"#s="+enc({t:S.ses.title,p:S.ses.player,i:items})}
+document.addEventListener("click",function(ev){
+ var t=ev.target.closest("[data-tab],[data-a]");if(!t)return;
+ if(t.dataset.tab){S.tab=t.dataset.tab;S.edit=null;render();return}
+ var a=t.dataset.a,i=+t.dataset.i,id=+t.dataset.id,it=S.ses.items;
+ if(a=="fetch"){var u=document.getElementById("f-video").value,st=document.getElementById("f-st");
+  if(!vidId(u)){st.textContent="Lien YouTube non reconnu.";return}
+  st.textContent="Récupération…";
+  fetch("/.netlify/functions/video?url="+encodeURIComponent(u)).then(function(r){return r.json()}).then(function(d){
+   if(d.error){st.textContent=d.error;return}
+   document.getElementById("f-name").value=d.title;document.getElementById("f-tips").value=d.description;
+   st.textContent="Rempli. Vérifie le nom et les consignes avant d’enregistrer."}).catch(function(){st.textContent="Erreur réseau."})}
+ else if(a=="saveEx"){var n=document.getElementById("f-name").value.trim();if(!n)return;
+  var v=document.getElementById("f-video").value.trim();
+  var e=S.edit||{id:Date.now()};e.name=n;e.video=v;e.vid=vidId(v);e.tips=document.getElementById("f-tips").value;
+  if(!S.edit)S.lib.push(e);S.edit=null;save();render()}
+ else if(a=="cancel"){S.edit=null;render()}
+ else if(a=="editEx"){S.edit=ex(id);render();scrollTo(0,0)}
+ else if(a=="delEx"){S.lib=S.lib.filter(function(x){return x.id!=id});S.ses.items=it.filter(function(x){return x.exId!=id});save();render()}
+ else if(a=="add"){var s=document.getElementById("add-sel").value;if(s){it.push({exId:+s,sets:"3",reps:"10",load:"",rest:"60 s"});save();render()}}
+ else if(a=="rm"){it.splice(i,1);save();render()}
+ else if(a=="up"&&i>0){var x=it[i];it[i]=it[i-1];it[i-1]=x;save();render()}
+ else if(a=="down"&&i<it.length-1){var y=it[i];it[i]=it[i+1];it[i+1]=y;save();render()}
+ else if(a=="print"){window.print()}
+ else if(a=="share"){var l=shareLink(),st2=document.getElementById("sh-st");
+  (navigator.clipboard?navigator.clipboard.writeText(l):Promise.reject()).then(function(){st2.textContent="Lien copié. Envoie-le aux joueurs."}).catch(function(){prompt("Copie ce lien :",l)})}});
+document.addEventListener("input",function(ev){var t=ev.target;
+ if(t.id=="s-title"){S.ses.title=t.value;save()}
+ else if(t.id=="s-player"){S.ses.player=t.value;save()}
+ else if(t.dataset.k){S.ses.items[+t.dataset.i][t.dataset.k]=t.value;save()}});
+load();render();
+</script></body></html>
