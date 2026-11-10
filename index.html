@@ -18,97 +18,178 @@ label{font-size:13px;color:var(--mu)}
 .btn.sec{background:transparent;color:var(--ac);border:1px solid var(--ac)}
 .btn.del{background:transparent;color:#d33;border:1px solid #d33;padding:6px 10px}
 .row{display:flex;gap:8px}.row>*{flex:1}
-.thumb{width:96px;height:72px;border-radius:10px;background:var(--bd);display:flex;align-items:center;justify-content:center;font-size:30px;overflow:hidden;flex:none}
+.thumb{width:96px;height:72px;border-radius:10px;background:var(--bd);display:flex;align-items:center;justify-content:center;font-size:30px;overflow:hidden;flex:none;position:relative;text-decoration:none}
 .thumb img{width:100%;height:100%;object-fit:cover}
+.play::after{content:"▶";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;text-shadow:0 0 6px #000}
 .ex{display:flex;gap:12px;align-items:center}
 .ex h3{margin:0 0 2px;font-size:17px}
 .tags{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0}
 .tags span{background:var(--bg);border:1px solid var(--bd);border-radius:20px;padding:2px 10px;font-size:14px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+.chip{padding:4px 12px;border:1px solid var(--bd);border-radius:20px;background:var(--card);color:var(--tx);font:inherit;font-size:14px;cursor:pointer}
+.chip.on{background:var(--ac);border-color:var(--ac);color:#fff}
+.seg{display:flex;border:1px solid var(--ac);border-radius:10px;overflow:hidden;margin:10px 0}
+.seg button{flex:1;padding:9px;border:0;background:transparent;color:var(--ac);font:inherit}
+.seg button.on{background:var(--ac);color:#fff}
+.sum{cursor:pointer}
+summary.sum{list-style:none}
 .mu{color:var(--mu);font-size:14px;white-space:pre-line}
 a{color:var(--ac)}
-@media print{nav,.noprint{display:none!important}body{background:#fff;color:#000}.card{break-inside:avoid;border-color:#ccc}}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:10;display:flex;align-items:center;justify-content:center;padding:12px}
+.box{background:var(--card);border-radius:12px;width:100%;max-width:720px;max-height:90vh;overflow:auto;padding:12px}
+.vid{position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:10px;overflow:hidden}
+.vid iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+@media print{nav,.noprint,.ov{display:none!important}body{background:#fff;color:#000}.card{break-inside:avoid;border-color:#ccc}}
 </style></head><body><main>
-<nav class="noprint" id="nav"><button data-tab="lib">Bibliothèque</button><button data-tab="ses">Séance</button><button data-tab="prev">Aperçu / PDF</button></nav>
+<nav class="noprint" id="nav"><button data-tab="lib">Bibliothèque</button><button data-tab="ses">Séances</button></nav>
 <div id="v"></div>
 </main>
+<div id="m"></div>
 <script>
-var S={tab:"ses",lib:[],ses:{title:"Séance 1",player:"",items:[]},edit:null,ro:false};
-var KEY="seances-v2";
-function save(){try{localStorage.setItem(KEY,JSON.stringify({lib:S.lib,ses:S.ses}))}catch(e){}}
+var S={tab:"ses",lib:[],sessions:[],folders:[],cur:null,mode:"edit",open:-1,edit:null,flt:[],q:"",modal:null,pk:{q:"",tags:[]},ro:false,ses:null};
+var KEY="seances-v3";
+function save(){try{localStorage.setItem(KEY,JSON.stringify({lib:S.lib,sessions:S.sessions,folders:S.folders}))}catch(e){}}
 function vidId(u){var m=String(u||"").match(/(?:v=|youtu\.be\/|shorts\/|embed\/)([\w-]{11})/);return m?m[1]:""}
-function th(v){return v?"https://i.ytimg.com/vi/"+v+"/hqdefault.jpg":""}
+function sv(v){return /^[\w-]{11}$/.test(v||"")?v:""}
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
 function enc(o){return btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"")}
 function dec(s){s=s.replace(/-/g,"+").replace(/_/g,"/");while(s.length%4)s+="=";return JSON.parse(decodeURIComponent(escape(atob(s))))}
 function load(){
- if(location.hash.indexOf("#s=")==0){try{var d=dec(location.hash.slice(3));S.ro=true;S.tab="prev";S.ses={title:d.t,player:d.p,items:d.i};return}catch(e){}}
- try{var x=JSON.parse(localStorage.getItem(KEY)||"null");if(x){S.lib=x.lib||[];S.ses=x.ses||S.ses}}catch(e){}}
+ if(location.hash.indexOf("#s=")==0){try{var d=dec(location.hash.slice(3));S.ro=true;S.mode="prev";S.ses={title:d.t,player:d.p,items:d.i};return}catch(e){}}
+ try{var x=JSON.parse(localStorage.getItem(KEY)||"null");
+  if(x){S.lib=x.lib||[];S.sessions=x.sessions||[];S.folders=x.folders||[]}
+  else{var o=JSON.parse(localStorage.getItem("seances-v2")||"null");
+   if(o){S.lib=o.lib||[];if(o.ses&&o.ses.items&&o.ses.items.length)S.sessions=[{id:Date.now(),title:o.ses.title||"Séance 1",player:o.ses.player||"",folder:"",items:o.ses.items}]}}}catch(e){}
+ S.lib.forEach(function(e){if(!e.tags)e.tags=[]})}
 function ex(id){return S.lib.filter(function(e){return e.id==id})[0]}
-function resolved(){
- if(S.ro)return S.ses.items;
- var out=[];S.ses.items.forEach(function(it){var x=ex(it.exId);if(x)out.push({n:x.name,v:x.vid,k:x.tips,s:it.sets,r:it.reps,l:it.load,t:it.rest})});return out}
-function thumb(v){return'<div class="thumb">'+(v?'<img src="'+th(v)+'" alt="">':"🏋️")+"</div>"}
+function curS(){return S.ro?S.ses:S.sessions.filter(function(s){return s.id==S.cur})[0]}
+function allTags(extra){var t=[];S.lib.forEach(function(e){e.tags.forEach(function(g){if(t.indexOf(g)<0)t.push(g)})});(extra||[]).forEach(function(g){if(t.indexOf(g)<0)t.push(g)});return t.sort(function(a,b){return a.localeCompare(b,"fr")})}
+function thumb(v,play){v=sv(v);if(!v)return'<div class="thumb">🏋️</div>';
+ var im='<img src="https://i.ytimg.com/vi/'+v+'/hqdefault.jpg" alt="">';
+ return play?'<a class="thumb play" href="https://www.youtube.com/watch?v='+v+'" target="_blank" rel="noopener" data-a="play" data-v="'+v+'">'+im+"</a>":'<div class="thumb">'+im+"</div>"}
+function tagsHtml(t){return t&&t.length?'<div class="tags">'+t.map(function(g){return"<span>"+esc(g)+"</span>"}).join("")+"</div>":""}
+function chips(list,sel,attr){return'<div class="chips">'+list.map(function(t){return'<button class="chip'+(sel.indexOf(t)>-1?" on":"")+'" data-a="'+attr+'" data-t="'+esc(t)+'">'+esc(t)+"</button>"}).join("")+"</div>"}
+function filtered(q,tags){q=(q||"").toLowerCase();return S.lib.filter(function(e){return(!q||e.name.toLowerCase().indexOf(q)>-1)&&tags.every(function(t){return e.tags.indexOf(t)>-1})})}
+function toggle(arr,v){var i=arr.indexOf(v);if(i>-1)arr.splice(i,1);else arr.push(v)}
 function render(){
- document.getElementById("nav").style.display=S.ro?"none":"flex";
- document.querySelectorAll("nav button").forEach(function(b){b.className=b.dataset.tab==S.tab?"on":""});
- document.getElementById("v").innerHTML=S.tab=="lib"?libView():S.tab=="ses"?sesView():prevView()}
-function libView(){
- var e=S.edit||{id:0,name:"",video:"",tips:""};
- var h='<div class="card"><b>'+(e.id?"Modifier":"Nouvel")+' exercice</b><br><label>Lien YouTube</label><div class="row"><input id="f-video" value="'+esc(e.video)+'" placeholder="https://youtu.be/…"><button class="btn" data-a="fetch" style="flex:none">Récupérer</button></div><div class="mu" id="f-st"></div>'
- +'<label>Nom</label><input id="f-name" value="'+esc(e.name)+'"><label>Consignes d’exécution</label><textarea id="f-tips" rows="4">'+esc(e.tips)+"</textarea>"
- +'<button class="btn" data-a="saveEx">Enregistrer</button> '+(e.id?'<button class="btn sec" data-a="cancel">Annuler</button>':"")+"</div>";
- S.lib.forEach(function(x){h+='<div class="card ex">'+thumb(x.vid)+'<div style="flex:1"><h3>'+esc(x.name)+'</h3><div class="mu">'+esc((x.tips||"").slice(0,120))+'</div></div><div><button class="btn sec" data-a="editEx" data-id="'+x.id+'">✎</button> <button class="btn del" data-a="delEx" data-id="'+x.id+'">✕</button></div></div>'});
+ var nav=document.getElementById("nav");nav.style.display=S.ro?"none":"flex";
+ nav.querySelectorAll("button").forEach(function(b){b.className=b.dataset.tab==S.tab?"on":""});
+ var h=S.ro?sesPage():S.tab=="lib"?libView():S.cur?sesPage():listView();
+ document.getElementById("v").innerHTML=h;
+ document.getElementById("m").innerHTML=modalView()}
+/* ---------- Bibliothèque ---------- */
+function libView(){var h="";
+ if(S.edit){var e=S.edit;
+  h+='<div class="card"><b>'+(e.id?"Modifier l’exercice":"Nouvel exercice")+'</b><br><label>Lien YouTube</label><div class="row"><input id="f-video" value="'+esc(e.video)+'" placeholder="https://youtu.be/…"><button class="btn" data-a="fetch" style="flex:none">Récupérer</button></div><div class="mu" id="f-st"></div>'
+  +'<label>Nom</label><input id="f-name" value="'+esc(e.name)+'"><label>Consignes d’exécution</label><textarea id="f-tips" rows="4">'+esc(e.tips)+"</textarea>"
+  +"<label>Catégories / tags</label>"+chips(allTags(e.tags),e.tags,"ftag")
+  +'<div class="row"><input id="f-newtag" placeholder="Nouveau tag (ex : vitesse)"><button class="btn sec" data-a="addtag" style="flex:none;margin:3px 0 8px">Ajouter</button></div>'
+  +'<button class="btn" data-a="saveEx">Enregistrer</button> <button class="btn sec" data-a="cancel">Annuler</button></div>'}
+ else h+='<div class="card"><button class="btn" data-a="newEx">+ Nouvel exercice</button></div>';
+ h+='<div class="card"><input id="lib-q" placeholder="Rechercher un exercice…" value="'+esc(S.q)+'" style="margin-top:0">'+(allTags().length?chips(allTags(),S.flt,"lflt"):'<div class="mu">Les tags apparaîtront ici.</div>')+'</div><div id="lib-list">'+libList()+"</div>";
  return h}
+function libList(){var L=filtered(S.q,S.flt);if(!L.length)return'<p class="mu">Aucun exercice.</p>';
+ return L.map(function(x){return'<div class="card ex">'+thumb(x.vid,true)+'<div style="flex:1"><h3>'+esc(x.name)+"</h3>"+tagsHtml(x.tags)+'<div class="mu">'+esc((x.tips||"").slice(0,100))+'</div></div><div><button class="btn sec" data-a="editEx" data-id="'+x.id+'">✎</button> <button class="btn del" data-a="delEx" data-id="'+x.id+'">✕</button></div></div>'}).join("")}
+/* ---------- Liste des séances ---------- */
+function listView(){
+ var h='<div class="card"><div class="row"><button class="btn" data-a="newSes" data-f="">+ Nouvelle séance</button><button class="btn sec" data-a="newFolder">+ Nouveau dossier</button></div></div>';
+ S.folders.concat([""]).forEach(function(f){var L=S.sessions.filter(function(s){return(s.folder||"")==f});
+  h+='<details class="card" open><summary class="sum"><b>'+(f?"📁 "+esc(f):"Sans dossier")+'</b> <span class="mu">('+L.length+")</span></summary>";
+  if(f)h+='<div style="margin:8px 0"><button class="btn sec" data-a="newSes" data-f="'+esc(f)+'">+ Séance ici</button> <button class="btn sec" data-a="renFolder" data-f="'+esc(f)+'">Renommer</button> <button class="btn del" data-a="delFolder" data-f="'+esc(f)+'">Supprimer</button></div>';
+  L.forEach(function(s){h+='<div class="card ex" style="margin:8px 0 0"><div style="flex:1"><h3>'+esc(s.title||"Sans titre")+'</h3><div class="mu">'+esc(s.player||"")+(s.player?" · ":"")+s.items.length+" exercice"+(s.items.length>1?"s":"")+'</div></div><div><button class="btn" data-a="openSes" data-id="'+s.id+'">Ouvrir</button> <button class="btn sec" data-a="dupSes" data-id="'+s.id+'">⧉</button> <button class="btn del" data-a="delSes" data-id="'+s.id+'">✕</button></div></div>'});
+  if(!L.length)h+='<div class="mu" style="margin-top:6px">Aucune séance.</div>';
+  h+="</details>"});
+ return h}
+/* ---------- Page d’une séance ---------- */
+function resolved(s){if(S.ro)return s.items.map(function(x){return{n:x.n,v:sv(x.v),k:x.k,s:x.s,r:x.r,l:x.l,t:x.t}});
+ var o=[];s.items.forEach(function(it){var x=ex(it.exId);if(x)o.push({n:x.name,v:x.vid,k:x.tips,s:it.sets,r:it.reps,l:it.load,t:it.rest,g:x.tags})});return o}
+function sesPage(){var s=curS();if(!s){S.cur=null;return listView()}
+ var h="";
+ if(!S.ro){h+='<div class="noprint"><button class="btn sec" data-a="back">← Séances</button></div>'
+  +'<div class="seg noprint"><button data-a="mode" data-m="edit" class="'+(S.mode=="edit"?"on":"")+'">Éditer</button><button data-a="mode" data-m="prev" class="'+(S.mode=="prev"?"on":"")+'">Aperçu</button></div>'
+  +'<div class="noprint" style="margin-bottom:10px"><button class="btn" data-a="share">Copier le lien à envoyer</button> <button class="btn sec" data-a="print">Exporter en PDF</button><div class="mu" id="sh-st"></div></div>'}
+ return h+((!S.ro&&S.mode=="edit")?editBody(s):prevBody(s))}
+function editBody(s){
+ var h='<div class="card"><div class="row"><div><label>Titre</label><input id="s-title" value="'+esc(s.title)+'"></div><div><label>Joueur / groupe</label><input id="s-player" value="'+esc(s.player)+'"></div></div>'
+ +'<label>Dossier</label><select id="s-folder"><option value="">Sans dossier</option>'+S.folders.map(function(f){return'<option'+(f==s.folder?" selected":"")+' value="'+esc(f)+'">'+esc(f)+"</option>"}).join("")+"</select></div>";
+ s.items.forEach(function(it,i){var x=ex(it.exId);if(!x)return;var o=S.open==i;
+  var sm=[(it.sets&&it.reps)?it.sets+" × "+it.reps:(it.sets||it.reps),it.load,it.rest].filter(Boolean).join(" · ");
+  h+='<div class="card"><div class="ex sum" data-a="tog" data-i="'+i+'">'+thumb(x.vid)+'<div style="flex:1"><h3>'+(i+1)+". "+esc(x.name)+'</h3><div class="mu">'+esc(sm||"à renseigner")+"</div></div><span>"+(o?"▴":"▾")+"</span></div>";
+  if(o)h+='<div class="row" style="margin-top:10px">'+fld("Séries","sets",it.sets,i)+fld("Reps","reps",it.reps,i)+fld("Charge","load",it.load,i)+fld("Repos","rest",it.rest,i)+'</div><div><button class="btn sec" data-a="up" data-i="'+i+'">↑</button> <button class="btn sec" data-a="down" data-i="'+i+'">↓</button> <button class="btn del" data-a="rm" data-i="'+i+'">Retirer</button></div>';
+  h+="</div>"});
+ return h+'<button class="btn" data-a="openPick">+ Ajouter des exercices</button>'}
 function fld(l,k,v,i){return"<div><label>"+l+'</label><input data-k="'+k+'" data-i="'+i+'" value="'+esc(v)+'"></div>'}
-function sesView(){
- var s=S.ses;
- var h='<div class="card"><div class="row"><div><label>Titre de la séance</label><input id="s-title" value="'+esc(s.title)+'"></div><div><label>Joueur / groupe</label><input id="s-player" value="'+esc(s.player)+'"></div></div></div>';
- s.items.forEach(function(it,i){var x=ex(it.exId);if(!x)return;
-  h+='<div class="card"><div class="ex">'+thumb(x.vid)+'<h3 style="flex:1">'+(i+1)+". "+esc(x.name)+'</h3><div><button class="btn sec" data-a="up" data-i="'+i+'">↑</button> <button class="btn sec" data-a="down" data-i="'+i+'">↓</button> <button class="btn del" data-a="rm" data-i="'+i+'">✕</button></div></div><div class="row" style="margin-top:8px">'+fld("Séries","sets",it.sets,i)+fld("Reps","reps",it.reps,i)+fld("Charge","load",it.load,i)+fld("Repos","rest",it.rest,i)+"</div></div>"});
- h+='<div class="card"><label>Ajouter un exercice</label><div class="row"><select id="add-sel">'+S.lib.map(function(x){return'<option value="'+x.id+'">'+esc(x.name)+"</option>"}).join("")+'</select><button class="btn" data-a="add" style="flex:none">Ajouter</button></div></div>';
- return h}
 function tag(v,l){return v?"<span>"+esc(v)+(l?" "+l:"")+"</span>":""}
-function prevView(){
- var s=S.ses,h="";
- if(!S.ro)h+='<div class="noprint card"><button class="btn" data-a="share">Copier le lien à envoyer</button> <button class="btn sec" data-a="print">Exporter en PDF</button><div class="mu" id="sh-st"></div></div>';
- h+='<div class="card"><h2 style="margin:0">'+esc(s.title)+"</h2>"+(s.player?'<div class="mu">'+esc(s.player)+"</div>":"")+"</div>";
- var L=resolved();
- L.forEach(function(it,i){var u=it.v?"https://www.youtube.com/watch?v="+it.v:"";
-  var im=u?'<a href="'+u+'" target="_blank" rel="noopener">'+thumb(it.v)+"</a>":thumb("");
-  h+='<div class="card ex">'+im+'<div style="flex:1"><h3>'+(i+1)+". "+esc(it.n)+'</h3><div class="tags">'+tag(it.s,"séries")+tag(it.r,"reps")+tag(it.l,"")+tag(it.t,"repos")+'</div><div class="mu">'+esc(it.k)+"</div>"+(u?'<a href="'+u+'" target="_blank" rel="noopener">▶ Voir la vidéo</a>':"")+"</div></div>"});
- if(!L.length)h+='<p class="mu">Ajoute des exercices dans l’onglet Séance.</p>';
+function prevBody(s){var h='<div class="card"><h2 style="margin:0">'+esc(s.title)+"</h2>"+(s.player?'<div class="mu">'+esc(s.player)+"</div>":"")+"</div>";
+ var L=resolved(s);
+ L.forEach(function(it,i){var v=sv(it.v);
+  h+='<div class="card ex">'+thumb(v,true)+'<div style="flex:1"><h3>'+(i+1)+". "+esc(it.n)+'</h3><div class="tags">'+tag(it.s,"séries")+tag(it.r,"reps")+tag(it.l,"")+tag(it.t,"repos")+'</div><div class="mu">'+esc(it.k)+"</div>"
+  +(v?'<a href="https://www.youtube.com/watch?v='+v+'" target="_blank" rel="noopener" data-a="play" data-v="'+v+'">▶ Voir la vidéo</a>':"")+"</div></div>"});
+ if(!L.length)h+='<p class="mu">Cette séance est vide.</p>';
  return h}
-function shareLink(){
- var items=resolved().map(function(x){return{n:x.n,v:x.v,k:(x.k||"").slice(0,300),s:x.s,r:x.r,l:x.l,t:x.t}});
- return location.origin+location.pathname+"#s="+enc({t:S.ses.title,p:S.ses.player,i:items})}
+/* ---------- Fenêtres (vidéo, choix d’exercices) ---------- */
+function pkList(){var s=curS();var L=filtered(S.pk.q,S.pk.tags);if(!L.length)return'<p class="mu">Aucun exercice.</p>';
+ return L.map(function(x){var n=s.items.filter(function(it){return it.exId==x.id}).length;
+  return'<div class="card ex">'+thumb(x.vid)+'<div style="flex:1"><h3>'+esc(x.name)+(n?' <span class="mu">(×'+n+")</span>":"")+"</h3>"+tagsHtml(x.tags)+'</div><button class="btn" data-a="addEx" data-id="'+x.id+'">+</button></div>'}).join("")}
+function modalView(){var m=S.modal;if(!m)return"";
+ if(m.t=="video")return'<div class="ov" data-a="closeM"><div class="box" style="padding:8px"><div class="vid"><iframe src="https://www.youtube-nocookie.com/embed/'+sv(m.v)+'?autoplay=1&rel=0&modestbranding=1&playsinline=1" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe></div><div style="margin-top:8px;text-align:right"><button class="btn" data-a="closeM">Fermer</button></div></div></div>';
+ return'<div class="ov"><div class="box"><div class="row" style="align-items:center"><b>Ajouter des exercices</b><span style="text-align:right"><button class="btn" data-a="closeM">Terminé</button></span></div><input id="pk-q" placeholder="Rechercher…" value="'+esc(S.pk.q)+'">'+chips(allTags(),S.pk.tags,"pktag")+'<div id="pk-list">'+pkList()+"</div></div></div>"}
+/* ---------- Actions ---------- */
+function syncForm(){if(!S.edit)return;var g=function(i){return document.getElementById(i)};if(g("f-name")){S.edit.name=g("f-name").value;S.edit.video=g("f-video").value;S.edit.tips=g("f-tips").value}}
+function addTag(){syncForm();var i=document.getElementById("f-newtag"),v=i?i.value.trim().toLowerCase():"";if(v&&S.edit.tags.indexOf(v)<0)S.edit.tags.push(v);render()}
+function shareLink(s){var items=resolved(s).map(function(x){return{n:x.n,v:x.v,k:(x.k||"").slice(0,300),s:x.s,r:x.r,l:x.l,t:x.t}});
+ return location.origin+location.pathname+"#s="+enc({t:s.title,p:s.player,i:items})}
 document.addEventListener("click",function(ev){
- var t=ev.target.closest("[data-tab],[data-a]");if(!t)return;
- if(t.dataset.tab){S.tab=t.dataset.tab;S.edit=null;render();return}
- var a=t.dataset.a,i=+t.dataset.i,id=+t.dataset.id,it=S.ses.items;
- if(a=="fetch"){var u=document.getElementById("f-video").value,st=document.getElementById("f-st");
+ var t=ev.target.closest("[data-tab],[data-a]");if(!t)return;var d=t.dataset;
+ if(d.tab){S.tab=d.tab;S.cur=null;S.edit=null;render();return}
+ var a=d.a,id=+d.id,i=+d.i,s=curS();
+ if(a=="closeM"&&t.classList.contains("ov")&&ev.target!==t)return;
+ if(a=="play"){ev.preventDefault();S.modal={t:"video",v:d.v};render();return}
+ if(a=="closeM"){S.modal=null;render()}
+ else if(a=="openPick"){S.pk={q:"",tags:[]};S.modal={t:"pick"};render()}
+ else if(a=="pktag"){toggle(S.pk.tags,d.t);render()}
+ else if(a=="addEx"){s.items.push({exId:id,sets:"3",reps:"10",load:"",rest:"60 s"});save();document.getElementById("pk-list").innerHTML=pkList()}
+ else if(a=="tog"){S.open=S.open==i?-1:i;render()}
+ else if(a=="rm"){s.items.splice(i,1);S.open=-1;save();render()}
+ else if(a=="up"&&i>0){var x=s.items[i];s.items[i]=s.items[i-1];s.items[i-1]=x;S.open=i-1;save();render()}
+ else if(a=="down"&&i<s.items.length-1){var y=s.items[i];s.items[i]=s.items[i+1];s.items[i+1]=y;S.open=i+1;save();render()}
+ else if(a=="mode"){S.mode=d.m;render()}
+ else if(a=="back"){S.cur=null;render()}
+ else if(a=="newSes"){var ns={id:Date.now(),title:"Nouvelle séance",player:"",folder:d.f||"",items:[]};S.sessions.push(ns);S.cur=ns.id;S.mode="edit";S.open=-1;save();render()}
+ else if(a=="openSes"){S.cur=id;S.mode="edit";S.open=-1;render()}
+ else if(a=="dupSes"){var o=S.sessions.filter(function(z){return z.id==id})[0],c=JSON.parse(JSON.stringify(o));c.id=Date.now();c.title=o.title+" (copie)";S.sessions.push(c);save();render()}
+ else if(a=="delSes"){if(confirm("Supprimer cette séance ?")){S.sessions=S.sessions.filter(function(z){return z.id!=id});save();render()}}
+ else if(a=="newFolder"){var n=(prompt("Nom du dossier ?")||"").trim();if(n&&S.folders.indexOf(n)<0){S.folders.push(n);save();render()}}
+ else if(a=="renFolder"){var n2=(prompt("Nouveau nom du dossier ?",d.f)||"").trim();if(n2&&n2!=d.f&&S.folders.indexOf(n2)<0){S.folders[S.folders.indexOf(d.f)]=n2;S.sessions.forEach(function(z){if(z.folder==d.f)z.folder=n2});save();render()}}
+ else if(a=="delFolder"){if(confirm("Supprimer ce dossier ? Les séances sont conservées dans « Sans dossier ».")){S.folders=S.folders.filter(function(f){return f!=d.f});S.sessions.forEach(function(z){if(z.folder==d.f)z.folder=""});save();render()}}
+ else if(a=="lflt"){toggle(S.flt,d.t);render()}
+ else if(a=="newEx"){S.edit={id:0,name:"",video:"",vid:"",tips:"",tags:[]};render()}
+ else if(a=="editEx"){var e=ex(id);S.edit=JSON.parse(JSON.stringify(e));render();scrollTo(0,0)}
+ else if(a=="cancel"){S.edit=null;render()}
+ else if(a=="ftag"){syncForm();toggle(S.edit.tags,d.t);render()}
+ else if(a=="addtag"){addTag()}
+ else if(a=="fetch"){var u=document.getElementById("f-video").value,st=document.getElementById("f-st");
   if(!vidId(u)){st.textContent="Lien YouTube non reconnu.";return}
   st.textContent="Récupération…";
-  fetch("/.netlify/functions/video?url="+encodeURIComponent(u)).then(function(r){return r.json()}).then(function(d){
-   if(d.error){st.textContent=d.error;return}
-   document.getElementById("f-name").value=d.title;document.getElementById("f-tips").value=d.description;
+  fetch("/.netlify/functions/video?url="+encodeURIComponent(u)).then(function(r){return r.json()}).then(function(r){
+   if(r.error){st.textContent=r.error;return}
+   document.getElementById("f-name").value=r.title;document.getElementById("f-tips").value=r.description;
    st.textContent="Rempli. Vérifie le nom et les consignes avant d’enregistrer."}).catch(function(){st.textContent="Erreur réseau."})}
- else if(a=="saveEx"){var n=document.getElementById("f-name").value.trim();if(!n)return;
-  var v=document.getElementById("f-video").value.trim();
-  var e=S.edit||{id:Date.now()};e.name=n;e.video=v;e.vid=vidId(v);e.tips=document.getElementById("f-tips").value;
-  if(!S.edit)S.lib.push(e);S.edit=null;save();render()}
- else if(a=="cancel"){S.edit=null;render()}
- else if(a=="editEx"){S.edit=ex(id);render();scrollTo(0,0)}
- else if(a=="delEx"){S.lib=S.lib.filter(function(x){return x.id!=id});S.ses.items=it.filter(function(x){return x.exId!=id});save();render()}
- else if(a=="add"){var s=document.getElementById("add-sel").value;if(s){it.push({exId:+s,sets:"3",reps:"10",load:"",rest:"60 s"});save();render()}}
- else if(a=="rm"){it.splice(i,1);save();render()}
- else if(a=="up"&&i>0){var x=it[i];it[i]=it[i-1];it[i-1]=x;save();render()}
- else if(a=="down"&&i<it.length-1){var y=it[i];it[i]=it[i+1];it[i+1]=y;save();render()}
- else if(a=="print"){window.print()}
- else if(a=="share"){var l=shareLink(),st2=document.getElementById("sh-st");
-  (navigator.clipboard?navigator.clipboard.writeText(l):Promise.reject()).then(function(){st2.textContent="Lien copié. Envoie-le aux joueurs."}).catch(function(){prompt("Copie ce lien :",l)})}});
+ else if(a=="saveEx"){syncForm();var ed=S.edit;if(!ed.name.trim())return;ed.name=ed.name.trim();ed.vid=vidId(ed.video);
+  if(ed.id){S.lib=S.lib.map(function(z){return z.id==ed.id?ed:z})}else{ed.id=Date.now();S.lib.push(ed)}
+  S.edit=null;save();render()}
+ else if(a=="delEx"){if(confirm("Supprimer cet exercice de la bibliothèque (et des séances) ?")){S.lib=S.lib.filter(function(z){return z.id!=id});S.sessions.forEach(function(z){z.items=z.items.filter(function(it){return it.exId!=id})});save();render()}}
+ else if(a=="share"){var l=shareLink(s),st2=document.getElementById("sh-st");
+  (navigator.clipboard?navigator.clipboard.writeText(l):Promise.reject()).then(function(){st2.textContent="Lien copié. Envoie-le aux joueurs."}).catch(function(){prompt("Copie ce lien :",l)})}
+ else if(a=="print"){S.mode="prev";render();setTimeout(function(){window.print()},80)}});
 document.addEventListener("input",function(ev){var t=ev.target;
- if(t.id=="s-title"){S.ses.title=t.value;save()}
- else if(t.id=="s-player"){S.ses.player=t.value;save()}
- else if(t.dataset.k){S.ses.items[+t.dataset.i][t.dataset.k]=t.value;save()}});
+ if(t.id=="lib-q"){S.q=t.value;document.getElementById("lib-list").innerHTML=libList();return}
+ if(t.id=="pk-q"){S.pk.q=t.value;document.getElementById("pk-list").innerHTML=pkList();return}
+ var s=curS();if(!s)return;
+ if(t.id=="s-title"){s.title=t.value;save()}
+ else if(t.id=="s-player"){s.player=t.value;save()}
+ else if(t.id=="s-folder"){s.folder=t.value;save()}
+ else if(t.dataset.k){s.items[+t.dataset.i][t.dataset.k]=t.value;save()}});
+document.addEventListener("keydown",function(ev){if(ev.key=="Enter"&&ev.target.id=="f-newtag"){ev.preventDefault();addTag()}});
 load();render();
 </script></body></html>
