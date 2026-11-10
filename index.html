@@ -69,7 +69,7 @@ function thumb(v,play){v=sv(v);if(!v)return'<div class="thumb">🏋️</div>';
  return play?'<a class="thumb play" href="https://www.youtube.com/watch?v='+v+'" target="_blank" rel="noopener" data-a="play" data-v="'+v+'">'+im+"</a>":'<div class="thumb">'+im+"</div>"}
 function tagsHtml(t){return t&&t.length?'<div class="tags">'+t.map(function(g){return"<span>"+esc(g)+"</span>"}).join("")+"</div>":""}
 function chips(list,sel,attr){return'<div class="chips">'+list.map(function(t){return'<button class="chip'+(sel.indexOf(t)>-1?" on":"")+'" data-a="'+attr+'" data-t="'+esc(t)+'">'+esc(t)+"</button>"}).join("")+"</div>"}
-function filtered(q,tags){q=(q||"").toLowerCase();return S.lib.filter(function(e){return(!q||e.name.toLowerCase().indexOf(q)>-1)&&tags.every(function(t){return e.tags.indexOf(t)>-1})})}
+function filtered(q,tags){q=(q||"").toLowerCase();return S.lib.filter(function(e){return(!q||e.name.toLowerCase().indexOf(q)>-1||e.tags.some(function(g){return g.indexOf(q)>-1}))&&tags.every(function(t){return e.tags.indexOf(t)>-1})})}
 function toggle(arr,v){var i=arr.indexOf(v);if(i>-1)arr.splice(i,1);else arr.push(v)}
 function render(){
  var nav=document.getElementById("nav");nav.style.display=S.ro?"none":"flex";
@@ -94,9 +94,9 @@ function libList(){var L=filtered(S.q,S.flt);if(!L.length)return'<p class="mu">A
 function listView(){
  var h='<div class="card"><div class="row"><button class="btn" data-a="newSes" data-f="">+ Nouvelle séance</button><button class="btn sec" data-a="newFolder">+ Nouveau dossier</button></div></div>';
  S.folders.concat([""]).forEach(function(f){var L=S.sessions.filter(function(s){return(s.folder||"")==f});
-  h+='<details class="card" open><summary class="sum"><b>'+(f?"📁 "+esc(f):"Sans dossier")+'</b> <span class="mu">('+L.length+")</span></summary>";
+  h+='<details class="card" data-drop="'+esc(f)+'" open><summary class="sum"><b>'+(f?"📁 "+esc(f):"Sans dossier")+'</b> <span class="mu">('+L.length+")</span></summary>";
   if(f)h+='<div style="margin:8px 0"><button class="btn sec" data-a="newSes" data-f="'+esc(f)+'">+ Séance ici</button> <button class="btn sec" data-a="renFolder" data-f="'+esc(f)+'">Renommer</button> <button class="btn del" data-a="delFolder" data-f="'+esc(f)+'">Supprimer</button></div>';
-  L.forEach(function(s){h+='<div class="card ex" style="margin:8px 0 0"><div style="flex:1"><h3>'+esc(s.title||"Sans titre")+'</h3><div class="mu">'+esc(s.player||"")+(s.player?" · ":"")+s.items.length+" exercice"+(s.items.length>1?"s":"")+'</div></div><div><button class="btn" data-a="openSes" data-id="'+s.id+'">Ouvrir</button> <button class="btn sec" data-a="dupSes" data-id="'+s.id+'">⧉</button> <button class="btn del" data-a="delSes" data-id="'+s.id+'">✕</button></div></div>'});
+  L.forEach(function(s){h+='<div class="card ex" draggable="true" data-sid="'+s.id+'" style="margin:8px 0 0;cursor:grab"><div style="flex:1"><h3>'+esc(s.title||"Sans titre")+'</h3><div class="mu">'+esc(s.player||"")+(s.player?" · ":"")+s.items.length+" exercice"+(s.items.length>1?"s":"")+'</div><select class="mv" data-id="'+s.id+'" style="margin:6px 0 0;padding:5px;font-size:14px"><option value="">Déplacer vers…</option>'+moveOpts(s.folder||"")+'</select></div><div><button class="btn" data-a="openSes" data-id="'+s.id+'">Ouvrir</button> <button class="btn sec" data-a="dupSes" data-id="'+s.id+'">⧉</button> <button class="btn del" data-a="delSes" data-id="'+s.id+'">✕</button></div></div>'});
   if(!L.length)h+='<div class="mu" style="margin-top:6px">Aucune séance.</div>';
   h+="</details>"});
  return h}
@@ -191,5 +191,13 @@ document.addEventListener("input",function(ev){var t=ev.target;
  else if(t.id=="s-folder"){s.folder=t.value;save()}
  else if(t.dataset.k){s.items[+t.dataset.i][t.dataset.k]=t.value;save()}});
 document.addEventListener("keydown",function(ev){if(ev.key=="Enter"&&ev.target.id=="f-newtag"){ev.preventDefault();addTag()}});
+function moveOpts(cur){var o=cur?'<option value="__none">Sans dossier</option>':"";S.folders.forEach(function(f){if(f!=cur)o+='<option value="'+esc(f)+'">📁 '+esc(f)+"</option>"});return o}
+function moveSes(id,f){var z=S.sessions.filter(function(x){return x.id==id})[0];if(z&&(z.folder||"")!=f){z.folder=f;save();render()}}
+var dragId=null;
+document.addEventListener("dragstart",function(ev){var c=ev.target.closest&&ev.target.closest("[data-sid]");if(!c)return;dragId=+c.dataset.sid;try{ev.dataTransfer.setData("text/plain",String(dragId));ev.dataTransfer.effectAllowed="move"}catch(e){}});
+document.addEventListener("dragover",function(ev){if(dragId==null)return;var d=ev.target.closest("[data-drop]");if(!d)return;ev.preventDefault();document.querySelectorAll("[data-drop]").forEach(function(x){x.style.outline=""});d.style.outline="2px dashed var(--ac)"});
+document.addEventListener("drop",function(ev){if(dragId==null)return;var d=ev.target.closest("[data-drop]");if(!d)return;ev.preventDefault();var id=dragId;dragId=null;moveSes(id,d.getAttribute("data-drop"))});
+document.addEventListener("dragend",function(){dragId=null;document.querySelectorAll("[data-drop]").forEach(function(x){x.style.outline=""})});
+document.addEventListener("change",function(ev){var t=ev.target;if(t.classList&&t.classList.contains("mv")&&t.value!==""){moveSes(+t.dataset.id,t.value=="__none"?"":t.value)}});
 load();render();
 </script></body></html>
