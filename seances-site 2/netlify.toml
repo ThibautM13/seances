@@ -1,7 +1,0 @@
-[build]
-  command = "mkdir -p dist && cp index.html dist/index.html"
-  publish = "dist"
-  functions = "netlify/functions"
-
-[build.environment]
-  NODE_VERSION = "22"
