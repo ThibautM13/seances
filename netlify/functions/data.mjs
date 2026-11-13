@@ -23,7 +23,10 @@ const valid = (d) =>
 export default async (req) => {
   const secret = process.env.APP_CODE;
   if (!secret) return json(500, { error: "Le code d’accès n’est pas configuré sur Netlify (variable APP_CODE)." });
-  if (!same(req.headers.get("x-code") || "", secret)) return json(401, { error: "Code d’accès incorrect." });
+  if (!same(req.headers.get("x-code") || "", secret)) {
+    await new Promise((r) => setTimeout(r, 800)); // ralentit les essais au hasard
+    return json(401, { error: "Code d’accès incorrect." });
+  }
 
   const store = getStore({ name: "seances", consistency: "strong" });
   const entry = await store.getWithMetadata("state", { type: "json" });
